@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -17,7 +16,9 @@
 #include <string>
 #include <sstream>
 #include <iostream>
-
+#include <sys/shm.h>
+#include <sys/msg.h>
+#include <error.h>
 #define PORT "3490"  // the port users will be connecting to
 
 #define BACKLOG 10     // how many pending connections queue will hold
@@ -106,7 +107,32 @@ void ReapDead() {
     }
 }
 
+//this is for the message queue data
+struct buffer {
+    long mtype;
+    struct message {
+        std::string data;
+        std::string name;
+    } msg;
+};
+
 int main(void) {
+    /*
+      // creating a message queue
+      key_t key = ftok("./main.cpp",'a');
+
+      //0666 is -rw -rw -rw
+      int msqid = msgget(key,0666|IPC_CREAT);
+      if(msqid == -1){
+          perror("creating message queue");
+      }
+      buffer * bufQ=new buffer;
+      bufQ->mtype=1;
+      bufQ->msg.data="test data";
+      bufQ->msg.name="3bhady";
+  */
+
+
     int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
     struct addrinfo *servinfo, *p;
     struct sockaddr_storage their_addr; // connector's address information
@@ -163,6 +189,8 @@ int main(void) {
             }
             while (true) {
                 int numbytes = recv(new_fd, buf, MAXDATASIZE - 1, 0);
+
+
                 if (numbytes == 0) {
                     std::cout << "the user has exited" << std::endl;
                     kill(childID, SIGTERM);

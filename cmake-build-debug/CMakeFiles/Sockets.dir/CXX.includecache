@@ -37,4 +37,8 @@ sstream
 -
 iostream
 -
+sys/shm.h
+-
+sys/msg.h
+-
 
