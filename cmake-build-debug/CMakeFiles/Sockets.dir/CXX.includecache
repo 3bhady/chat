@@ -13,8 +13,6 @@ stdlib.h
 -
 unistd.h
 -
-errno.h
--
 string.h
 -
 sys/types.h
@@ -40,5 +38,9 @@ iostream
 sys/shm.h
 -
 sys/msg.h
+-
+error.h
+-
+vector
 -
 

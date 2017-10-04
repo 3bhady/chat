@@ -19,6 +19,7 @@
 #include <sys/shm.h>
 #include <sys/msg.h>
 #include <error.h>
+#include <vector>
 #define PORT "3490"  // the port users will be connecting to
 
 #define BACKLOG 10     // how many pending connections queue will hold
@@ -107,6 +108,40 @@ void ReapDead() {
     }
 }
 
+
+void SendProcess(int new_fd)
+{
+    while (true) {
+        std::string word;
+        std::getline(std::cin, word);
+
+        //sleep(1);
+        if (send(new_fd, word.c_str(), word.length(), 0) == -1) {
+            std::cout << "exited from the sending fork" << std::endl;
+            exit(0);
+        }
+
+    }
+}
+void RecieveProcess(int new_fd,int childID)
+{
+    char *buf [MAXDATASIZE];
+    while (true) {
+        int numbytes = recv(new_fd, buf, MAXDATASIZE - 1, 0);
+
+
+        if (numbytes == 0) {
+            std::cout << "the user has exited" << std::endl;
+            kill(childID, SIGTERM);
+            exit(0);
+            break;
+            //
+        }
+        buf[numbytes] = '\0';
+        std::cout << "client number:" << new_fd << " ";
+        printf(" responded with: %s\n", buf);
+    }
+}
 //this is for the message queue data
 struct buffer {
     long mtype;
@@ -137,19 +172,14 @@ int main(void) {
     struct addrinfo *servinfo, *p;
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t sin_size;
-
-
     char s[INET6_ADDRSTRLEN];
     char buf[MAXDATASIZE];
-
+    int ServerPID;
 
     GetAddressInfo(servinfo);
-
     // loop through all the results and bind to the first we can
     BindFirstSucc(servinfo, sockfd);
-
     ListenOnSocket(sockfd);
-
     ReapDead(); // reap all dead processes
 
 
@@ -157,63 +187,48 @@ int main(void) {
 
 
     printf("server: waiting for connections...\n");
+   // if(!(ServerPID=fork())) {
+        //this code if for the listening server **Main Server**
+        while (1) {
+            sin_size = sizeof their_addr;
+            new_fd = accept(sockfd, (struct sockaddr *) &their_addr, &sin_size);
+            if (new_fd == -1) {
+                perror("accept");
+                continue;
+            }
+            int ListenPID; //the server process id that communicates with a new client
+            //also Sid is the process id for the listening fork which is the parent for
+            if (!(ListenPID = fork())) {
+                inet_ntop(their_addr.ss_family,
+                          get_in_addr((struct sockaddr *) &their_addr),
+                          s, sizeof s);
+                printf("server: got connection from %s\n", s);
 
-    while(1) {  // main accept() loop
-        sin_size = sizeof their_addr;
-        new_fd = accept(sockfd, (struct sockaddr *) &their_addr, &sin_size);
-        if (new_fd == -1) {
-            perror("accept");
-            continue;
-        }
-        int Sid; //the server process id that communicates with a new client
-        if (!(Sid = fork())) {
-            inet_ntop(their_addr.ss_family,
-                      get_in_addr((struct sockaddr *) &their_addr),
-                      s, sizeof s);
-            printf("server: got connection from %s\n", s);
-
-            int i = 0;
-            int childID;
-            if (!(childID = fork())) {
-                while (true) {
-                    std::string word;
-                    std::getline(std::cin, word);
-
-                    //sleep(1);
-                    if (send(new_fd, word.c_str(), word.length(), 0) == -1) {
-                        std::cout << "exited from the sending fork" << std::endl;
-                        exit(0);
-                    }
-
+                int SendPID;
+                if (!(SendPID = fork())) {
+                 //the sending fork for the client
+                    SendProcess(new_fd);
+                } else {
+                    //the listening fork for specific client
+                    RecieveProcess(new_fd,SendPID);
                 }
             }
-            while (true) {
-                int numbytes = recv(new_fd, buf, MAXDATASIZE - 1, 0);
-
-
-                if (numbytes == 0) {
-                    std::cout << "the user has exited" << std::endl;
-                    kill(childID, SIGTERM);
-                    exit(0);
-                    break;
-                    //
-                }
-                buf[numbytes] = '\0';
-                std::cout << "client number:" << new_fd << " ";
-                printf(" responded with: %s\n", buf);
+            else
+            {
+                //this is the code that gets executed in the **Main server** process
+                //which listens on the socket for new connections
             }
-
-
-            /*  if (!fork()) { // this is the child process
-                  close(sockfd); // child doesn't need the listener
-                  if (send(new_fd, "Hello, world!", 13, 0) == -1)
-                      perror("send");
-                  close(new_fd);
-                  exit(0);
-              }
-              close(new_fd);  // parent doesn't need this */
         }
-    }
+    //}
+ //   else //this code is for the chat manager
+ //   {
+    //ServerPID contains the process id listening for new connections
 
+    //two vectors containing PIDs of the listening and sending processes
+ //   std::vector<int>SendPIDs,ListenPIDs;
+
+
+
+   // }
     return 0;
 }
